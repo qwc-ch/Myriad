@@ -11,14 +11,12 @@ The fixed-container gateway provides OS/resource isolation and bounded lifecycle
 cleanup; see [MCP gateway](MCP_GATEWAY.md) and its optional
 [network/persistence controls](MCP_CAPABILITIES.md).**
 
-A constrained single-container platform can explicitly use the combined runtime, but it gives up the worker resource, restart and database-login boundaries described below.
-
 | Entry | Starts | Intended use |
 | --- | --- | --- |
 | `MYRIAD_PROCESS_ROLE=web` | Web bootstrap, platform/Phantasi/TAPP schedulers; no persona or federation domain | Production web |
 | `/app/myriad-federation-worker` or `MYRIAD_PROCESS_ROLE=federation-worker` | Existing-schema check, configuration refresh, federation HTTP/WS, delivery and health | Trusted first-party federation process |
 | `/app/myriad-persona-worker` or `MYRIAD_PROCESS_ROLE=persona-worker` | Existing-schema check, persona HTTP/state, notifications, supervised drivers and MCP | Trusted first-party persona process |
-| `MYRIAD_PROCESS_ROLE=all` | Combined runtime | Development by default; production requires the explicit `MYRIAD_ALLOW_COMBINED_RUNTIME=true` opt-in |
+| `MYRIAD_PROCESS_ROLE=all` | Combined runtime | Development only; rejected with `ENVIRONMENT=production` |
 | Role unset | Startup error before web bootstrap in every environment | Migrate host topology; local dev explicitly selects `all` |
 
 The dedicated worker executable path takes precedence over role environment values.
@@ -99,7 +97,8 @@ it can be deployed first. Apply `PROXY_FEDERATION_UPSTREAM=http://federation-wor
 and `PROXY_PERSONA_UPSTREAM=http://persona-worker:1103` to the running proxy,
 add both worker services and set backend `MYRIAD_PROCESS_ROLE=web`. The new Guard
 must understand both fixed worker commands and their storage/resource contracts. Pulling an image does not
-migrate Compose. Current binaries reject an unset role in every environment. The standard production topology still requires the three isolated processes; a constrained single-container deployment may opt into combined execution with `MYRIAD_ALLOW_COMBINED_RUNTIME=true`, but that deployment does not provide worker resource or restart isolation.
+migrate Compose. Current binaries reject an unset role in every environment; they no longer
+continue combined execution after a warning.
 
 Updater preflight checks the explicit web role, worker topology and storage mounts,
 and inspects the running proxy's image capability label
