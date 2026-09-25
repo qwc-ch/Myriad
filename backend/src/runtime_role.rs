@@ -15,7 +15,6 @@ pub enum RuntimeRole {
     Web,
     FederationWorker,
     PersonaWorker,
-    /// Explicit developer convenience; production must use isolated processes.
     All,
 }
 
@@ -35,6 +34,7 @@ impl RuntimeRole {
             Ok(value) => Self::parse(
                 &value,
                 crate::config::AppConfig::is_production_environment(),
+                combined_runtime_allowed(),
             ),
             Err(std::env::VarError::NotPresent) => Self::missing_role(),
             Err(error) => Err(error.into()),
@@ -43,26 +43,32 @@ impl RuntimeRole {
 
     fn missing_role() -> anyhow::Result<Self> {
         anyhow::bail!(
-            "MYRIAD_PROCESS_ROLE is required: migrate Compose and updater/Guard to the split \
-             topology and set the backend role to web before upgrading; for local development \
-             select all explicitly. Implicit combined execution is no longer supported"
+            "MYRIAD_PROCESS_ROLE is required: set web for the normal topology, or all only \
+             with MYRIAD_ALLOW_COMBINED_RUNTIME=true in a constrained single-container deployment"
         )
     }
 
-    fn parse(value: &str, production: bool) -> anyhow::Result<Self> {
+    fn parse(value: &str, production: bool, allow_combined: bool) -> anyhow::Result<Self> {
         match value {
             "web" => Ok(Self::Web),
             "federation-worker" => Ok(Self::FederationWorker),
             "persona-worker" => Ok(Self::PersonaWorker),
-            "all" if !production => Ok(Self::All),
+            "all" if !production || allow_combined => Ok(Self::All),
             "all" => anyhow::bail!(
-                "MYRIAD_PROCESS_ROLE=all is development-only; deploy separate workers"
+                "MYRIAD_PROCESS_ROLE=all requires MYRIAD_ALLOW_COMBINED_RUNTIME=true in production"
             ),
             _ => anyhow::bail!(
-                "MYRIAD_PROCESS_ROLE must be web, federation-worker, persona-worker, or development-only all"
+                "MYRIAD_PROCESS_ROLE must be web, federation-worker, persona-worker, or explicitly enabled all"
             ),
         }
     }
+}
+
+fn combined_runtime_allowed() -> bool {
+    matches!(
+        std::env::var("MYRIAD_ALLOW_COMBINED_RUNTIME").as_deref(),
+        Ok("1" | "true" | "TRUE" | "yes" | "on")
+    )
 }
 
 #[cfg(test)]
@@ -71,17 +77,27 @@ mod tests {
     #[test]
     fn production_never_silently_combines_roles() {
         assert!(RuntimeRole::missing_role().is_err());
-        assert_eq!(RuntimeRole::parse("web", true).unwrap(), RuntimeRole::Web);
         assert_eq!(
-            RuntimeRole::parse("federation-worker", true).unwrap(),
+            RuntimeRole::parse("web", true, false).unwrap(),
+            RuntimeRole::Web
+        );
+        assert_eq!(
+            RuntimeRole::parse("federation-worker", true, false).unwrap(),
             RuntimeRole::FederationWorker
         );
         assert_eq!(
-            RuntimeRole::parse("persona-worker", true).unwrap(),
+            RuntimeRole::parse("persona-worker", true, false).unwrap(),
             RuntimeRole::PersonaWorker
         );
-        assert!(RuntimeRole::parse("all", true).is_err());
-        assert!(RuntimeRole::parse("federaton-worker", false).is_err());
-        assert_eq!(RuntimeRole::parse("all", false).unwrap(), RuntimeRole::All);
+        assert!(RuntimeRole::parse("all", true, false).is_err());
+        assert_eq!(
+            RuntimeRole::parse("all", true, true).unwrap(),
+            RuntimeRole::All
+        );
+        assert!(RuntimeRole::parse("federaton-worker", false, false).is_err());
+        assert_eq!(
+            RuntimeRole::parse("all", false, false).unwrap(),
+            RuntimeRole::All
+        );
     }
 }

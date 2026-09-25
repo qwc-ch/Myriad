@@ -31,7 +31,7 @@ not split):
 | Docker component | Native equivalent |
 | --- | --- |
 | `postgres` container | A normal PostgreSQL 17+ server (system package; 18 recommended) |
-| `backend` + `federation-worker` + `persona-worker` | One `myriad-backend` binary under systemd (combined runtime; production Docker rejects this) |
+| `backend` + `federation-worker` + `persona-worker` | One `myriad-backend` binary under systemd (combined runtime; set `MYRIAD_PROCESS_ROLE=all` and, for production, `MYRIAD_ALLOW_COMBINED_RUNTIME=true`) |
 | `frontend` container (`spa-server`) | **Gone** — the backend serves `frontend/dist` directly via `FRONTEND_DIST_PATH` |
 | `proxy` container (Rust reverse proxy) | **Optional** — replaced by Caddy/nginx purely for TLS, or omitted for HTTP-only/LAN |
 | `updater` / `updater-gateway` / `docker-guard` | **Not available** — they drive Docker via `docker.sock`. Updates are done by rebuild (see [§10](#10-updating)) |
